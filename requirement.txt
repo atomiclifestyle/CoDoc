@@ -7,3 +7,4 @@ fastapi==0.115.6
 uvicorn==0.34.0
 streamlit==1.41.1
 requests==2.32.3
+langchain_ollama

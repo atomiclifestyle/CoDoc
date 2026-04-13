@@ -1,8 +1,15 @@
+import os
+os.environ["CHROMA_TELEMETRY"] = "false"
 from git import Repo
 from pathlib import Path
 import ollama 
 import chromadb
+from chromadb.config import Settings
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
+from langchain_ollama import ChatOllama
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
 SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",  # images
     ".mp4", ".mp3", ".wav",                            # media
@@ -11,16 +18,18 @@ SKIP_EXTENSIONS = {
     ".lock",                                           # lock files
     ".pyc", ".pyo",                                    # python cache
     ".exe", ".bin", ".so", ".dylib",                   # binaries
-    ".gitignore"
+    ".gitignore",
+    ".github"
 }
 
 # folders to skip entirely
 SKIP_DIRS = {
-    ".git", "node_modules", "__pycache__",
+    ".git", "node_modules", "__pycache__", ".github",
     ".venv", "venv", "env",
     "dist", "build", ".next",
-    ".idea", ".vscode",
+    ".idea", ".vscode", ".gitignore", "package-lock.json", "vercel.json"
 }
+
 class GitHubHelper:
 
     def __init__(self):
@@ -53,7 +62,9 @@ class GitHubHelper:
                     "content": content,
                     "extension": file_path.suffix.lower(),
                     "size": file_path.stat().st_size,
-                })
+                    })
+                    os.rmdir(target_dir)
+
 
                 except Exception as e:
                     print(f"Could not read {file_path}:{e}")
@@ -64,8 +75,11 @@ class GitHubHelper:
         for i,file in enumerate(files):
             print(f"Embedding {file['path']}...")
             response=ollama.embed(model='nomic-embed-text',input=file["content"])
-            self.collection.add(
-                ids=[str(i)],
+
+            unique_id = f"{file['path']}_chunk_{i}"
+
+            self.collection.upsert(
+                ids=[unique_id],
                 embeddings=[response["embeddings"][0]],
                 documents=[file["content"]],
                 metadatas=[{
@@ -116,13 +130,47 @@ class GitHubHelper:
                     "extension":ext,
                 })
         return all_chunks
+    
+    def llm_query(self, query: str):
+        print("sending query to the llm")
 
+        query_embed = ollama.embed(model='nomic-embed-text', input=query)
+        query_embedding = query_embed["embeddings"][0]
 
+        #query relevant data
+        result = self.collection.query(
+            query_embeddings=query_embedding,
+            n_results=3
+        )
 
-helper=GitHubHelper()
-helper.clone_repository("https://github.com/KrishnaKalra/CSE-Chapter-28-server.git","./cloned-repos")
-files=helper.walkRepo("./cloned-repos")
-files=helper.chunkFiles(files)
-helper.dbStore(files)
+        docs = result.get("documents", [[]])[0]
+        metadatas = result.get("metadatas", [[]])[0]
 
-#print(files)
+        context = []
+        for doc,meta in zip(docs, metadatas):
+            context.append(f"File: {meta['path']} - \n{doc}")
+
+        context_str = "\n\n".join(context)
+        if not context_str:
+            return "Couldn't find relavant information for your query"
+        
+        llm = ChatOllama(model="qwen2.5-coder:1.5b", temperature=0)
+
+        #construct prompt
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are a senior software engineer explaining a codebase. "
+                       "Use the following codebase context to answer the user's question. "
+                       "If the answer is not in the context, explicitly state that you don't know based on the provided code. "
+                       "Always format code snippets clearly.\n\n"
+                       "Context:\n{context}"),
+            ("user", "{input}")
+        ])
+
+        chain = prompt | llm | StrOutputParser()
+
+        response = chain.invoke({
+            "context": context_str,
+            "input": query
+        })
+
+        return response
