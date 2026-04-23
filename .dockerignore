@@ -1,0 +1,9 @@
+.venv/
+venv/
+
+__pycache__/
+
+chroma-store/
+cloned-repos/
+
+.git

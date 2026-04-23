@@ -2,6 +2,7 @@ import os
 os.environ["CHROMA_TELEMETRY"] = "false"
 from git import Repo
 from pathlib import Path
+import subprocess
 import ollama 
 import chromadb
 from chromadb.config import Settings
@@ -9,6 +10,7 @@ from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from datetime import datetime
 
 SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",  # images
@@ -33,11 +35,14 @@ SKIP_DIRS = {
 class GitHubHelper:
 
     def __init__(self):
+        self.delete_folder("./chroma-store")
         self.repo=None
         self.client = chromadb.PersistentClient(path="./chroma-store")
         self.collection = self.client.create_collection(name="docs")
     
     def clone_repository(self,remote_url,target_dir):
+        self.delete_folder(target_dir)
+        self.repo_url=remote_url[:-4] if remote_url.endswith(".git") else remote_url
         self.repo=Repo.clone_from(remote_url,target_dir)
         assert not self.repo.bare
         print(f"Cloned Successfull to {target_dir}")
@@ -174,3 +179,30 @@ class GitHubHelper:
         })
 
         return response
+    
+    def post_to_wiki(self, response, base_page_name="Architecture_Overview"):
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        page_name = f"{base_page_name}_{current_date}.md"
+        wiki_url=f"{self.repo_url}.wiki.git"
+        wiki_dir="./cloned-wiki"
+        page_name=""
+        wiki_repo=Repo.clone_from(wiki_url,wiki_dir)
+
+        file_path=os.path.join(wiki_dir, page_name)
+
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(response)
+
+        wiki_repo.index.add([page_name])
+        wiki_repo.index.commit(f"docs: auto-generated {page_name}")
+        wiki_repo.remotes.origin.push()
+
+        return
+    
+    def delete_folder(path: str):
+        path = Path(path)
+        if path.exists():
+            subprocess.run(
+                ["cmd", "/c", "rmdir", "/s", "/q", str(path)],
+                check=False
+            )
