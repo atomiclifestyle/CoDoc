@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import ollama 
 import chromadb
+import shutil
 from chromadb.config import Settings
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_ollama import ChatOllama
@@ -185,7 +186,8 @@ class GitHubHelper:
         page_name = f"{base_page_name}_{current_date}.md"
         wiki_url=f"{self.repo_url}.wiki.git"
         wiki_dir="./cloned-wiki"
-        page_name=""
+        
+        self.delete_folder(wiki_dir)
         wiki_repo=Repo.clone_from(wiki_url,wiki_dir)
 
         file_path=os.path.join(wiki_dir, page_name)
@@ -194,15 +196,28 @@ class GitHubHelper:
             file.write(response)
 
         wiki_repo.index.add([page_name])
-        wiki_repo.index.commit(f"docs: auto-generated {page_name}")
+        wiki_repo.index.commit(f"docs: auto-generated {page_name} by CoDoc")
         wiki_repo.remotes.origin.push()
 
         return
-    
-    def delete_folder(path: str):
-        path = Path(path)
-        if path.exists():
-            subprocess.run(
-                ["cmd", "/c", "rmdir", "/s", "/q", str(path)],
-                check=False
-            )
+
+    def delete_folder(self, path: str):
+        folder = Path(path)
+        if folder.exists() and folder.is_dir():
+            try:
+                shutil.rmtree(folder)
+            except Exception as e:
+                print(f"Warning: Failed to delete {path} via shutil: {e}")
+
+    def generate(self, repo_url, page_name):
+        self.delete_folder("./cloned-repos")
+        self.delete_folder("./chroma-store")
+        
+        self.clone_repository(repo_url, "./cloned-repos")
+        files=self.walkRepo("./cloned-repos")
+        files=self.chunkFiles(files)
+        self.dbStore(files)
+        response=self.llm_query("Explain the architecture of the codebase, and list the tech stack used")
+        self.post_to_wiki(response, page_name)
+
+        return response
