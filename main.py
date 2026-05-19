@@ -2,13 +2,22 @@ import os
 os.environ["CHROMA_TELEMETRY"] = "false"
 from git import Repo
 from pathlib import Path
+import subprocess
 import ollama 
 import chromadb
+import shutil
 from chromadb.config import Settings
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from datetime import datetime
+
+SKIP_FILES = {
+    "package-lock.json", 
+    "vercel.json", 
+    ".gitignore"
+}
 
 SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",  # images
@@ -22,22 +31,24 @@ SKIP_EXTENSIONS = {
     ".github"
 }
 
-# folders to skip entirely
 SKIP_DIRS = {
     ".git", "node_modules", "__pycache__", ".github",
     ".venv", "venv", "env",
     "dist", "build", ".next",
-    ".idea", ".vscode", ".gitignore", "package-lock.json", "vercel.json"
+    ".idea", ".vscode"
 }
 
 class GitHubHelper:
 
     def __init__(self):
+        self.delete_folder("./chroma-store")
         self.repo=None
         self.client = chromadb.PersistentClient(path="./chroma-store")
-        self.collection = self.client.create_collection(name="docs")
+        self.collection = self.client.get_or_create_collection(name="docs")
     
     def clone_repository(self,remote_url,target_dir):
+        self.delete_folder(target_dir)
+        self.repo_url=remote_url[:-4] if remote_url.endswith(".git") else remote_url
         self.repo=Repo.clone_from(remote_url,target_dir)
         assert not self.repo.bare
         print(f"Cloned Successfull to {target_dir}")
@@ -49,7 +60,8 @@ class GitHubHelper:
             if(file_path.is_file()):
                 print(f"Reading :{file_path}")
                 try: 
-
+                    if file_path.name in SKIP_FILES:
+                        continue
                     if any(part in SKIP_DIRS for part in file_path.parts):
                         continue
                     if file_path.suffix.lower() in SKIP_EXTENSIONS:
@@ -63,8 +75,6 @@ class GitHubHelper:
                     "extension": file_path.suffix.lower(),
                     "size": file_path.stat().st_size,
                     })
-                    os.rmdir(target_dir)
-
 
                 except Exception as e:
                     print(f"Could not read {file_path}:{e}")
@@ -72,11 +82,11 @@ class GitHubHelper:
     
     def dbStore(self,files):
         print("Embedding and storing in ChromaDB...")
-        for i,file in enumerate(files):
+        for file in files:
             print(f"Embedding {file['path']}...")
             response=ollama.embed(model='nomic-embed-text',input=file["content"])
 
-            unique_id = f"{file['path']}_chunk_{i}"
+            unique_id = f"{file['path']}_chunk_{file['chunk_index']}"
 
             self.collection.upsert(
                 ids=[unique_id],
@@ -123,11 +133,12 @@ class GitHubHelper:
                 chunk_overlap=100,
                 )
             chunks=splitter.split_text(file["content"])
-            for chunk in chunks:
+            for idx, chunk in enumerate(chunks):
                 all_chunks.append({
                     "content":chunk,
                     "path":file["path"],
                     "extension":ext,
+                    "chunk_index": idx
                 })
         return all_chunks
     
@@ -140,7 +151,7 @@ class GitHubHelper:
         #query relevant data
         result = self.collection.query(
             query_embeddings=query_embedding,
-            n_results=3
+            n_results=10
         )
 
         docs = result.get("documents", [[]])[0]
@@ -172,5 +183,45 @@ class GitHubHelper:
             "context": context_str,
             "input": query
         })
+
+        return response
+    
+    def post_to_wiki(self, response, base_page_name="Architecture_Overview"):
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        page_name = f"{base_page_name}_{current_date}.md"
+        wiki_url=f"{self.repo_url}.wiki.git"
+        wiki_dir="./cloned-wiki"
+        
+        self.delete_folder(wiki_dir)
+        wiki_repo=Repo.clone_from(wiki_url,wiki_dir)
+
+        file_path=os.path.join(wiki_dir, page_name)
+
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(response)
+
+        wiki_repo.index.add([page_name])
+        wiki_repo.index.commit(f"docs: auto-generated {page_name} by CoDoc")
+        wiki_repo.remotes.origin.push()
+
+        return
+
+    def delete_folder(self, path: str):
+        folder = Path(path)
+        if folder.exists() and folder.is_dir():
+            try:
+                shutil.rmtree(folder)
+            except Exception as e:
+                print(f"Warning: Failed to delete {path} via shutil: {e}")
+
+    def generate(self, repo_url, page_name):
+        self.delete_folder("./cloned-repos")
+        
+        self.clone_repository(repo_url, "./cloned-repos")
+        files=self.walkRepo("./cloned-repos")
+        files=self.chunkFiles(files)
+        self.dbStore(files)
+        response=self.llm_query("Explain the architecture of the codebase, and list the tech stack used")
+        self.post_to_wiki(response, page_name)
 
         return response

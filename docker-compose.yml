@@ -1,0 +1,47 @@
+services:
+  #Message Broker(Redis)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  #FastAPI Webhook Listener
+  api:
+    build: .
+    command: uvicorn webhook:app --host 0.0.0.0 --port 5000
+    volumes:
+      - .:/app
+    ports:
+      - "5000:5000"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      # TODO: Add MONGODB_URI and a mongo service, or point this to an
+      # existing MongoDB instance. webhook.py connects to Mongo on startup.
+    depends_on:
+      - redis
+
+  #Background Worker
+  worker:
+    build: .
+    command: celery -A worker worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      # TODO: Add the same MongoDB configuration used by the API if the worker
+      # needs repository metadata such as page_name.
+    depends_on:
+      - redis
+
+  #Frontend
+  streamlit:
+    build: .
+    command: streamlit run streamlit_app.py --server.port 8000 --server.address 0.0.0.0
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    # TODO: Streamlit writes repo records too, so it needs MongoDB config and
+    # should depend on that service once it is added.
+    depends_on:
+      - api
