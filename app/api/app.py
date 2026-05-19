@@ -4,8 +4,8 @@ from fastapi import FastAPI,Request
 from dataclasses import dataclass, asdict
 from contextlib import asynccontextmanager
 
-from worker import regenerate_doc
-from database import db_manager
+from workers.worker import regenerate_doc
+from app.utils.db_connect import db_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

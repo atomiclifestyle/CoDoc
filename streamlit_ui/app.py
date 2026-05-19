@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 from main import GitHubHelper
-from database import db_manager
+from app.utils.db_connect import db_manager
 
 def delete_folder(path: str):
     path = Path(path)
