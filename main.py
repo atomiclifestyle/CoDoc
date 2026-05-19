@@ -13,6 +13,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from datetime import datetime
 
+SKIP_FILES = {
+    "package-lock.json", 
+    "vercel.json", 
+    ".gitignore"
+}
+
 SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",  # images
     ".mp4", ".mp3", ".wav",                            # media
@@ -25,12 +31,11 @@ SKIP_EXTENSIONS = {
     ".github"
 }
 
-# folders to skip entirely
 SKIP_DIRS = {
     ".git", "node_modules", "__pycache__", ".github",
     ".venv", "venv", "env",
     "dist", "build", ".next",
-    ".idea", ".vscode", ".gitignore", "package-lock.json", "vercel.json"
+    ".idea", ".vscode"
 }
 
 class GitHubHelper:
@@ -39,7 +44,7 @@ class GitHubHelper:
         self.delete_folder("./chroma-store")
         self.repo=None
         self.client = chromadb.PersistentClient(path="./chroma-store")
-        self.collection = self.client.create_collection(name="docs")
+        self.collection = self.client.get_or_create_collection(name="docs")
     
     def clone_repository(self,remote_url,target_dir):
         self.delete_folder(target_dir)
@@ -55,7 +60,8 @@ class GitHubHelper:
             if(file_path.is_file()):
                 print(f"Reading :{file_path}")
                 try: 
-
+                    if file_path.name in SKIP_FILES:
+                        continue
                     if any(part in SKIP_DIRS for part in file_path.parts):
                         continue
                     if file_path.suffix.lower() in SKIP_EXTENSIONS:
@@ -69,8 +75,6 @@ class GitHubHelper:
                     "extension": file_path.suffix.lower(),
                     "size": file_path.stat().st_size,
                     })
-                    os.rmdir(target_dir)
-
 
                 except Exception as e:
                     print(f"Could not read {file_path}:{e}")
@@ -78,11 +82,11 @@ class GitHubHelper:
     
     def dbStore(self,files):
         print("Embedding and storing in ChromaDB...")
-        for i,file in enumerate(files):
+        for file in files:
             print(f"Embedding {file['path']}...")
             response=ollama.embed(model='nomic-embed-text',input=file["content"])
 
-            unique_id = f"{file['path']}_chunk_{i}"
+            unique_id = f"{file['path']}_chunk_{file['chunk_index']}"
 
             self.collection.upsert(
                 ids=[unique_id],
@@ -129,11 +133,12 @@ class GitHubHelper:
                 chunk_overlap=100,
                 )
             chunks=splitter.split_text(file["content"])
-            for chunk in chunks:
+            for idx, chunk in enumerate(chunks):
                 all_chunks.append({
                     "content":chunk,
                     "path":file["path"],
                     "extension":ext,
+                    "chunk_index": idx
                 })
         return all_chunks
     
@@ -146,7 +151,7 @@ class GitHubHelper:
         #query relevant data
         result = self.collection.query(
             query_embeddings=query_embedding,
-            n_results=3
+            n_results=10
         )
 
         docs = result.get("documents", [[]])[0]
@@ -211,7 +216,6 @@ class GitHubHelper:
 
     def generate(self, repo_url, page_name):
         self.delete_folder("./cloned-repos")
-        self.delete_folder("./chroma-store")
         
         self.clone_repository(repo_url, "./cloned-repos")
         files=self.walkRepo("./cloned-repos")
