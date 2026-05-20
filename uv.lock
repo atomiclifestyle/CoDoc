@@ -411,6 +411,43 @@ wheels = [
 ]
 
 [[package]]
+name = "codoc"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "celery" },
+    { name = "chromadb" },
+    { name = "fastapi" },
+    { name = "gitpython" },
+    { name = "langchain" },
+    { name = "langchain-ollama" },
+    { name = "langchain-text-splitters" },
+    { name = "ollama" },
+    { name = "pymongo" },
+    { name = "redis" },
+    { name = "requests" },
+    { name = "streamlit" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "celery", specifier = ">=5.6.3" },
+    { name = "chromadb", specifier = ">=1.5.9" },
+    { name = "fastapi", specifier = ">=0.136.1" },
+    { name = "gitpython", specifier = ">=3.1.50" },
+    { name = "langchain", specifier = ">=1.3.1" },
+    { name = "langchain-ollama", specifier = ">=1.1.0" },
+    { name = "langchain-text-splitters", specifier = ">=1.1.2" },
+    { name = "ollama", specifier = ">=0.6.2" },
+    { name = "pymongo", specifier = ">=4.17.0" },
+    { name = "redis", specifier = ">=7.4.0" },
+    { name = "requests", specifier = ">=2.34.2" },
+    { name = "streamlit", specifier = ">=1.57.0" },
+    { name = "uvicorn", specifier = ">=0.47.0" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -489,43 +526,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/72/94/63b0fc47eb32792c7ba1fe1b694daec9a63620db1e313033d18140c2320a/gitdb-4.0.12.tar.gz", hash = "sha256:5ef71f855d191a3326fcfbc0d5da835f26b13fbcba60c32c21091c349ffdb571", size = 394684, upload-time = "2025-01-02T07:20:46.413Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/61/5c78b91c3143ed5c14207f463aecfc8f9dbb5092fb2869baf37c273b2705/gitdb-4.0.12-py3-none-any.whl", hash = "sha256:67073e15955400952c6565cc3e707c554a4eea2e428946f7a4c162fab9bd9bcf", size = 62794, upload-time = "2025-01-02T07:20:43.624Z" },
-]
-
-[[package]]
-name = "github-analyser"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "celery" },
-    { name = "chromadb" },
-    { name = "fastapi" },
-    { name = "gitpython" },
-    { name = "langchain" },
-    { name = "langchain-ollama" },
-    { name = "langchain-text-splitters" },
-    { name = "ollama" },
-    { name = "pymongo" },
-    { name = "redis" },
-    { name = "requests" },
-    { name = "streamlit" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "celery", specifier = ">=5.6.3" },
-    { name = "chromadb", specifier = ">=1.5.9" },
-    { name = "fastapi", specifier = ">=0.136.1" },
-    { name = "gitpython", specifier = ">=3.1.50" },
-    { name = "langchain", specifier = ">=1.3.1" },
-    { name = "langchain-ollama", specifier = ">=1.1.0" },
-    { name = "langchain-text-splitters", specifier = ">=1.1.2" },
-    { name = "ollama", specifier = ">=0.6.2" },
-    { name = "pymongo", specifier = ">=4.17.0" },
-    { name = "redis", specifier = ">=7.4.0" },
-    { name = "requests", specifier = ">=2.34.2" },
-    { name = "streamlit", specifier = ">=1.57.0" },
-    { name = "uvicorn", specifier = ">=0.47.0" },
 ]
 
 [[package]]
