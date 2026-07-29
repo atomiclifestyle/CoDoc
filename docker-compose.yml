@@ -15,8 +15,6 @@ services:
       - "5000:5000"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
-      # TODO: Add MONGODB_URI and a mongo service, or point this to an
-      # existing MongoDB instance. webhook.py connects to Mongo on startup.
     depends_on:
       - redis
 
@@ -28,8 +26,6 @@ services:
       - .:/app
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
-      # TODO: Add the same MongoDB configuration used by the API if the worker
-      # needs repository metadata such as page_name.
     depends_on:
       - redis
 
@@ -41,7 +37,5 @@ services:
       - .:/app
     ports:
       - "8000:8000"
-    # TODO: Streamlit writes repo records too, so it needs MongoDB config and
-    # should depend on that service once it is added.
     depends_on:
       - api

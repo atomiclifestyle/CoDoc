@@ -14,8 +14,6 @@ def delete_folder(path: str):
         )
 
 def store_to_db(repo_url, page_name):
-    # TODO: Connect db_manager in the Streamlit process before using db_manager.db.
-    # The FastAPI lifespan connection does not initialize this separate app.
     repo_model=db_manager.db.repos
     repo_model.insert_one({
         "repo_url": repo_url,
