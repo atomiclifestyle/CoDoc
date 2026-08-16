@@ -2,11 +2,13 @@ import os
 os.environ["CHROMA_TELEMETRY"] = "false"
 from git import Repo
 from pathlib import Path
-import subprocess
 import ollama 
 import chromadb
 import shutil
-from chromadb.config import Settings
+import tiktoken
+from tree_sitter import Language, Parser
+import tree_sitter_python as tspython
+import tree_sitter_javascript
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -45,6 +47,12 @@ class GitHubHelper:
         self.repo=None
         self.client = chromadb.PersistentClient(path="./chroma-store")
         self.collection = self.client.get_or_create_collection(name="docs")
+        self.tokenizer = tiktoken.get_encoding("cl100k_base") 
+        
+        self.ts_parsers = {
+            ".py": Language(tspython.language()),
+            ".js": Language(tree_sitter_javascript.language()), 
+        }
     
     def clone_repository(self,remote_url,target_dir):
         self.delete_folder(target_dir)
@@ -99,6 +107,24 @@ class GitHubHelper:
             )
 
         print(f"Stored {len(files)} files in ChromaDB.")
+
+    def ast_chunking(self, source_code: str, lang: Language) -> list:
+        parser = Parser(lang)
+        tree = parser.parse(bytes(source_code, "utf8"))
+        chunks = []
+
+        target_nodes = {'function_definition', 'class_definition', 'method_definition'}
+
+        def traverse(node):
+            if node.type in target_nodes:
+                chunks.append(source_code[node.start_byte:node.end_byte])
+            else:
+                for child in node.children:
+                    traverse(child)
+
+        traverse(tree.root_node)
+        
+        return chunks if chunks else [source_code]
     
     def chunkFiles(self,files):
         EXTENSION_MAP = {
@@ -120,22 +146,29 @@ class GitHubHelper:
         all_chunks=[]
         for file in files:
             ext=file['extension']
+            content=file["content"]
             language=EXTENSION_MAP.get(ext)
-            if language:
+
+            if ext in self.ts_parsers:
+                chunks=self.ast_chunking(content, self.ts_parsers[ext])
+            elif language:
                 splitter=RecursiveCharacterTextSplitter.from_language(
                     language=language,
                     chunk_size=1000,
                     chunk_overlap=100,
                 )
+                chunks=splitter.split_text(content)
             else:
                 splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1000,
-                chunk_overlap=100,
+                chunk_size=800,
+                chunk_overlap=0,
                 )
-            chunks=splitter.split_text(file["content"])
+                chunks=splitter.split_text(content)
+            
             for idx, chunk in enumerate(chunks):
+                clean_chunk = "\n".join([line for line in chunk.splitlines() if line.strip()])
                 all_chunks.append({
-                    "content":chunk,
+                    "content":clean_chunk,
                     "path":file["path"],
                     "extension":ext,
                     "chunk_index": idx
