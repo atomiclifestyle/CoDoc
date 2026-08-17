@@ -47,7 +47,8 @@ class GitHubHelper:
         self.repo=None
         self.client = chromadb.PersistentClient(path="./chroma-store")
         self.collection = self.client.get_or_create_collection(name="docs")
-        self.tokenizer = tiktoken.get_encoding("cl100k_base") 
+        self.tokenizer = tiktoken.get_encoding("cl100k_base")
+        self.ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434")
         
         self.ts_parsers = {
             ".py": Language(tspython.language()),
@@ -176,9 +177,11 @@ class GitHubHelper:
         return all_chunks
     
     def llm_query(self, query: str):
-        print("sending query to the llm")
+        print(f'sending query to the llm running on {self.ollama_url}')
 
-        query_embed = ollama.embed(model='nomic-embed-text', input=query)
+        client=ollama.Client(host=self.ollama_url)
+
+        query_embed = client.embed(model='nomic-embed-text', input=query)
         query_embedding = query_embed["embeddings"][0]
 
         #query relevant data
@@ -198,7 +201,7 @@ class GitHubHelper:
         if not context_str:
             return "Couldn't find relavant information for your query"
         
-        llm = ChatOllama(model="qwen2.5-coder:1.5b", temperature=0)
+        llm = ChatOllama(model="qwen2.5-coder:1.5b", base_url=self.ollama_url, temperature=0)
 
         #construct prompt
         prompt = ChatPromptTemplate.from_messages([
