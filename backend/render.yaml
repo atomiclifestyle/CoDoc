@@ -1,37 +1,36 @@
 services:
-  #1. FastAPI Web Server
+  # 1. FastAPI Web Server
   - type: web
     name: fastapi-backend
     env: python
-    buildCommand: "pip install -r backend/requirements.txt"
-    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: "uv sync"
+    startCommand: "cd backend && uv run uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: celery-redis-broker
           property: connectionString
-      - key: OLLAMA_URL
+      - key: OLLAMA_BASE_URL
         sync: false
 
-  #2. Celery Worker Service
+  # 2. Celery Worker Service
   - type: worker
     name: celery-worker
     env: python
-    buildCommand: "pip install -r backend/requirements.txt"
-    startCommand: "cd backend && celery -A workers.worker worker --loglevel=info"
+    buildCommand: "uv sync"
+    startCommand: "cd backend && uv run celery -A tasks.celery_app worker --loglevel=info"
     envVars:
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: celery-redis-broker
           property: connectionString
-      - key: OLLAMA_URL
+      - key: OLLAMA_BASE_URL
         sync: false
 
-#3. Managed Redis Broker
-services:
-  - type: redis
+  # 3. Managed Redis Broker
+  - type: keyvalue
     name: celery-redis-broker
     ipAllowList: []
     plan: free

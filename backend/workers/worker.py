@@ -4,7 +4,7 @@ from backend.main import GitHubHelper
 from backend.utils.db_connect import db_manager
 
 #Redis as the broker
-app = Celery('llm_inference_task', broker=os.getenv('CELERY_BROKER_URL'))
+app = Celery('llm_inference_task', broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"))
 
 @app.task
 def regenerate_doc(repo_url: str, page_name: str):
