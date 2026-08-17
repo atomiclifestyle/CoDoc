@@ -1,7 +1,7 @@
 import os
 from celery import Celery
-from backend.main import GitHubHelper
-from backend.utils.db_connect import db_manager
+from main import GitHubHelper
+from utils.db_connect import db_manager
 
 #Redis as the broker
 app = Celery('llm_inference_task', broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"))

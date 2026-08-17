@@ -2,8 +2,8 @@ import streamlit as st
 import subprocess
 from pathlib import Path
 
-from backend.main import GitHubHelper
-from backend.utils.db_connect import db_manager
+from main import GitHubHelper
+from utils.db_connect import db_manager
 
 def delete_folder(path: str):
     path = Path(path)

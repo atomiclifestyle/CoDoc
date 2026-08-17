@@ -11,9 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from authlib.integrations.starlette_client import OAuth
 
-from backend.workers.worker import regenerate_doc
-from backend.main import GitHubHelper
-from backend.utils.db_connect import db_manager
+from workers.worker import regenerate_doc
+from main import GitHubHelper
+from utils.db_connect import db_manager
 
 load_dotenv() 
 
