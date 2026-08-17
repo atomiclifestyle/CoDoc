@@ -9,7 +9,8 @@ import tiktoken
 from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
 import tree_sitter_javascript
-from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
+import tree_sitter_typescript
+from langchain_text_splitters import Language as LangChainLanguage, RecursiveCharacterTextSplitter
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -52,7 +53,9 @@ class GitHubHelper:
         
         self.ts_parsers = {
             ".py": Language(tspython.language()),
-            ".js": Language(tree_sitter_javascript.language()), 
+            ".js": Language(tree_sitter_javascript.language()),
+            ".ts": Language(tree_sitter_typescript.language_typescript()),
+            ".tsx": Language(tree_sitter_typescript.language_tsx()),
         }
     
     def clone_repository(self,remote_url,target_dir):
@@ -129,20 +132,20 @@ class GitHubHelper:
     
     def chunkFiles(self,files):
         EXTENSION_MAP = {
-        ".py": Language.PYTHON,
-        ".js": Language.JS,
-        ".ts": Language.TS,
-        ".jsx": Language.JS,
-        ".tsx": Language.TS,
-        ".go": Language.GO,
-        ".java": Language.JAVA,
-        ".rb": Language.RUBY,
-        ".rs": Language.RUST,
-        ".cpp": Language.CPP,
-        ".c": Language.C,
-        ".cs": Language.CSHARP,
-        ".md": Language.MARKDOWN,
-        ".html": Language.HTML,
+        ".py": LangChainLanguage.PYTHON,
+        ".js": LangChainLanguage.JS,
+        ".ts": LangChainLanguage.TS,
+        ".jsx": LangChainLanguage.JS,
+        ".tsx": LangChainLanguage.TS,
+        ".go": LangChainLanguage.GO,
+        ".java": LangChainLanguage.JAVA,
+        ".rb": LangChainLanguage.RUBY,
+        ".rs": LangChainLanguage.RUST,
+        ".cpp": LangChainLanguage.CPP,
+        ".c": LangChainLanguage.C,
+        ".cs": LangChainLanguage.CSHARP,
+        ".md": LangChainLanguage.MARKDOWN,
+        ".html": LangChainLanguage.HTML,
         }
         all_chunks=[]
         for file in files:

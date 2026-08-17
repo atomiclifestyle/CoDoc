@@ -14,7 +14,11 @@ interface DashboardClientProps {
   isDemo: boolean;
 }
 
-export default function DashboardClient({ userName, userEmail, isDemo }: DashboardClientProps) {
+export default function DashboardClient({
+  userName,
+  userEmail,
+  isDemo,
+}: DashboardClientProps) {
   const [repos, setRepos] = useState<RepoSummary[]>([]);
   const [reposLoading, setReposLoading] = useState(true);
   const [reposError, setReposError] = useState<string | null>(null);
@@ -23,6 +27,8 @@ export default function DashboardClient({ userName, userEmail, isDemo }: Dashboa
   const [doc, setDoc] = useState<DocResponse | null>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const refreshRepos = useCallback(async () => {
     setReposLoading(true);
@@ -31,7 +37,9 @@ export default function DashboardClient({ userName, userEmail, isDemo }: Dashboa
       const data = await listTrackedRepos();
       setRepos(data);
     } catch (err) {
-      setReposError(err instanceof Error ? err.message : "Failed to load repos.");
+      setReposError(
+        err instanceof Error ? err.message : "Failed to load repos.",
+      );
     } finally {
       setReposLoading(false);
     }
@@ -41,16 +49,69 @@ export default function DashboardClient({ userName, userEmail, isDemo }: Dashboa
     refreshRepos();
   }, [refreshRepos]);
 
-  async function handleTrack(repoUrl: string, pageName: string, canUpdateWiki: boolean) {
+  async function pollForDocCompletion(
+    repoUrl: string,
+    maxAttempts = 30,
+    intervalMs = 3000,
+  ) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+
+      try {
+        const doc = await getLatestDoc(repoUrl);
+
+        if (doc) {
+          return doc;
+        }
+
+        setStatusMessage(
+          `Generating documentation... (Attempt ${attempt + 1})`,
+        );
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("failed on server")) {
+          throw err;
+        }
+      }
+    }
+
+    throw new Error(
+      "Documentation generation timed out. Please refresh later.",
+    );
+  }
+
+  async function handleTrack(
+    repoUrl: string,
+    pageName: string,
+    canUpdateWiki: boolean,
+  ) {
     const { repo } = await trackRepo({
       repo_url: repoUrl,
       page_name: pageName,
       can_update_wiki: canUpdateWiki,
     });
+
+    const updatedRepo = {
+      repo_url: repo.repo_url,
+      page_name: repo.page_name,
+      can_update_wiki: canUpdateWiki,
+    };
     setRepos((prev) => [
-      { repo_url: repo.repo_url, page_name: repo.page_name, can_update_wiki: canUpdateWiki },
+      updatedRepo,
       ...prev.filter((r) => r.repo_url !== repo.repo_url),
     ]);
+
+    setSelectedRepo(updatedRepo);
+    setDoc(null);
+    setDocError(null);
+    setDocLoading(true);
+
+    setStatusMessage("Generating documentation... This may take a moment.");
+
+    const docResult = await pollForDocCompletion(repo.repo_url);
+
+    setDoc(docResult);
+    setDocLoading(false);
+    setStatusMessage("Documentation generated successfully!");
   }
 
   async function handleSelectRepo(repo: RepoSummary) {
@@ -76,7 +137,9 @@ export default function DashboardClient({ userName, userEmail, isDemo }: Dashboa
             <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-ink text-[11px] font-mono font-semibold text-paper">
               C
             </span>
-            <span className="font-mono text-sm tracking-wide text-muted">CoDoc</span>
+            <span className="font-mono text-sm tracking-wide text-muted">
+              CoDoc
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {isDemo && (
@@ -105,7 +168,9 @@ export default function DashboardClient({ userName, userEmail, isDemo }: Dashboa
                 <h2 className="text-xs font-medium uppercase tracking-wide text-muted">
                   Tracked repositories
                 </h2>
-                <span className="font-mono text-xs text-muted">{repos.length}</span>
+                <span className="font-mono text-xs text-muted">
+                  {repos.length}
+                </span>
               </div>
               {reposError ? (
                 <p className="text-sm text-danger">{reposError}</p>
@@ -125,7 +190,16 @@ export default function DashboardClient({ userName, userEmail, isDemo }: Dashboa
             <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
               Latest generated doc
             </h2>
-            <DocViewer repo={selectedRepo} doc={doc} loading={docLoading} error={docError} />
+            {docLoading ? (
+              statusMessage
+            ) : (
+              <DocViewer
+                repo={selectedRepo}
+                doc={doc}
+                loading={docLoading}
+                error={docError}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from authlib.integrations.starlette_client import OAuth
 
 from backend.workers.worker import regenerate_doc
+from backend.main import GitHubHelper
 from backend.utils.db_connect import db_manager
 
 load_dotenv() 
@@ -319,6 +320,7 @@ async def get_repos(request: Request):
 async def register_repo(
     request: Request
 ):
+    helper=GitHubHelper()
 
     user = await get_current_user(request)
 
@@ -347,6 +349,8 @@ async def register_repo(
             detail="Repository already registered"
         )
 
+    response=helper.generate(repo_url, page_name)
+
     repo = {
         "repo_url": repo_url,
         "page_name": page_name,
@@ -355,7 +359,7 @@ async def register_repo(
             False
         ),
         "created_at": datetime.now(timezone.utc),
-        "content": "",
+        "content": response,
         "google_id": user["google_id"],
     }
 
@@ -374,11 +378,6 @@ async def register_repo(
                 }
             }
         }
-    )
-
-    regenerate_doc.delay(
-        repo_url,
-        page_name
     )
 
     return {
