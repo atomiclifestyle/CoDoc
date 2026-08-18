@@ -16,4 +16,4 @@ Generated documentation can be automatically published to GitHub Wiki pages. Bui
 
 ## System Architecture
 
-![System Architecture](assets/architecture.png)
+![System Architecture](backend/assets/architecture.png)
