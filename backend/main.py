@@ -261,6 +261,6 @@ class GitHubHelper:
         files=self.chunkFiles(files)
         self.dbStore(files)
         response=self.llm_query("Explain the architecture of the codebase, and list the tech stack used")
-        self.post_to_wiki(response, page_name)
+        # self.post_to_wiki(response, page_name)
 
         return response
